@@ -301,9 +301,24 @@ export default function Dashboard() {
               borderRadius: "50px",
               fontSize: "1.2em",
               fontWeight: "bold",
+              marginRight: "15px",
             }}
           >
             Start the Quiz!
+          </Link>
+          <Link
+            href="/statistics"
+            style={{
+              padding: "15px 30px",
+              backgroundColor: "#333",
+              color: "white",
+              textDecoration: "none",
+              borderRadius: "50px",
+              fontSize: "1.2em",
+              fontWeight: "bold",
+            }}
+          >
+            📊 View Statistics
           </Link>
         </div>
       </main>

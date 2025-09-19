@@ -51,36 +51,44 @@ export async function GET() {
   }
 
   try {
-    // 1. Fetch a larger list of the user's top tracks
-    const response = await fetch(
-      "https://api.spotify.com/v1/me/top/tracks?time_range=medium_term&limit=50",
-      {
-        headers: {
-          Authorization: `Bearer ${session.accessToken}`,
-        },
-        cache: "no-store",
+    // 1. Try to fetch a larger list of the user's top tracks from different time ranges
+    const timeRanges = ["medium_term", "long_term", "short_term"];
+    let playableTracks: SpotifyTrack[] = [];
+    let totalTracks = 0;
+    for (const timeRange of timeRanges) {
+      const response = await fetch(
+        `https://api.spotify.com/v1/me/top/tracks?time_range=${timeRange}&limit=50`,
+        {
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+          },
+          cache: "no-store",
+        }
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch top tracks from Spotify");
       }
-    );
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch top tracks from Spotify");
+      const topTracksData: SpotifyTopTracksResponse = await response.json();
+      totalTracks += topTracksData.items.length;
+      playableTracks = playableTracks.concat(
+        topTracksData.items.filter((track: SpotifyTrack) => track.preview_url)
+      );
+      if (playableTracks.length >= 10) break;
     }
-
-    const topTracksData: SpotifyTopTracksResponse = await response.json();
-
-    // 2. Filter for tracks that have a 30-second preview_url
-    const playableTracks = topTracksData.items.filter(
-      (track: SpotifyTrack) => track.preview_url
+    // Remove duplicates by track id
+    playableTracks = playableTracks.filter(
+      (track, idx, arr) => arr.findIndex(t => t.id === track.id) === idx
     );
-
+    // Log for debugging
+    console.log(`Total top tracks fetched: ${totalTracks}`);
+    console.log(`Playable tracks with preview_url: ${playableTracks.length}`);
     if (playableTracks.length < 10) {
       // Not enough playable tracks to create a full quiz
       return NextResponse.json(
-        { error: "Not enough playable top tracks to generate a quiz." },
+        { error: `Not enough playable top tracks to generate a quiz. Only found ${playableTracks.length} with previews.` },
         { status: 400 }
       );
     }
-
     // 3. Shuffle the tracks and select 10 for our questions
     const shuffledTracks = shuffle(playableTracks);
     const quizTracks = shuffledTracks.slice(0, 10);

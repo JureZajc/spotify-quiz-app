@@ -8,6 +8,12 @@ export interface IUser extends Document {
   spotifyId: string;
   refreshToken: string;
   image?: string; // image is optional
+  quizResults?: {
+    score: number;
+    totalQuestions: number;
+    date: Date;
+    timeRange: string;
+  }[];
 }
 
 // 2. Create the Mongoose Schema using the interface
@@ -33,6 +39,24 @@ const UserSchema: Schema<IUser> = new Schema({
   image: {
     type: String,
   },
+  quizResults: [{
+    score: {
+      type: Number,
+      required: true,
+    },
+    totalQuestions: {
+      type: Number,
+      required: true,
+    },
+    date: {
+      type: Date,
+      default: Date.now,
+    },
+    timeRange: {
+      type: String,
+      default: 'medium_term',
+    },
+  }],
 });
 
 // 3. Create and export the Mongoose model
