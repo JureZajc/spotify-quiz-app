@@ -62,8 +62,8 @@ export default function StatisticsPage() {
           }
           const result: ResultsData = await res.json();
           setData(result);
-        } catch (err: any) {
-          setError(err.message);
+        } catch (err: unknown) {
+          setError(err instanceof Error ? err.message : "An unknown error occurred");
         } finally {
           setLoading(false);
         }

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -17,6 +17,20 @@ interface QuizQuestion {
     options: QuizOption[];
 }
 
+interface SpotifyTrack {
+    id: string;
+    name: string;
+    artists: { name: string }[];
+    album: { images: { url: string }[] };
+    preview_url: string | null;
+}
+
+interface PreviewResult {
+    preview_url: string;
+    track: string;
+    artist: string;
+}
+
 type GameState = "loading" | "ready" | "playing" | "finished" | "error";
 
 export default function QuizPage() {
@@ -27,8 +41,8 @@ export default function QuizPage() {
     const [gameState, setGameState] = useState<GameState>("loading");
     const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
     const [isAnswered, setIsAnswered] = useState(false);
-    const audioRef = useRef<HTMLAudioElement>(null);
-    const [topTracks, setTopTracks] = useState<any[]>([]);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const [topTracks, setTopTracks] = useState<SpotifyTrack[]>([]);
     const [selectedTimeRange, setSelectedTimeRange] = useState<string>("medium_term");
 
     // --- Fetch quiz data on mount ---
@@ -54,7 +68,7 @@ export default function QuizPage() {
                 const data: QuizQuestion[] = await res.json();
                 setQuestions(data);
                 setGameState("ready"); // Wait for user to start
-            } catch (error) {
+            } catch {
                 setGameState("error");
             }
         };
@@ -68,7 +82,9 @@ export default function QuizPage() {
                     console.log(`Fetched ${data.tracks?.length || 0} tracks for ${currentTimeRange}`);
                     setTopTracks(data.tracks || []);
                 }
-            } catch {}
+            } catch {
+                // Silent fail for track fetching
+            }
         };
 
         fetchQuizData();
@@ -131,7 +147,7 @@ export default function QuizPage() {
                 const data = await res.json();
                 setQuestions(data);
                 setGameState("ready");
-            } catch (error) {
+            } catch {
                 router.push("/dashboard");
             }
         };
@@ -142,7 +158,7 @@ export default function QuizPage() {
     function PreviewChecker() {
         const [song, setSong] = useState("");
         const [artist, setArtist] = useState("");
-        const [result, setResult] = useState<{ preview_url: string; track: string; artist: string } | null>(null);
+        const [result, setResult] = useState<PreviewResult | null>(null);
         const [error, setError] = useState<string | null>(null);
         const [loading, setLoading] = useState(false);
 
@@ -163,7 +179,7 @@ export default function QuizPage() {
                 } else {
                     setError(data.error || "No preview found.");
                 }
-            } catch (err) {
+            } catch {
                 setError("Error checking preview.");
             } finally {
                 setLoading(false);
@@ -205,81 +221,12 @@ export default function QuizPage() {
         );
     }
 
-    // --- Top Tracks List UI ---
-    function TopTracksList({ tracks }: { tracks: any[] }) {
-        const [enhancedTracks, setEnhancedTracks] = useState<any[]>([]);
-        const [enhancing, setEnhancing] = useState(false);
-
-        useEffect(() => {
-            setEnhancedTracks(tracks);
-        }, [tracks]);
-
-        const enhanceTrackPreviews = async () => {
-            setEnhancing(true);
-            const enhanced = [];
-            for (const track of tracks) {
-                if (track.preview_url) {
-                    enhanced.push(track);
-                } else {
-                    try {
-                        const res = await fetch("/api/preview-check", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                                song: track.name,
-                                artist: track.artists.map((a: any) => a.name).join(", ")
-                            }),
-                        });
-                        if (res.ok) {
-                            const previewData = await res.json();
-                            enhanced.push({ ...track, preview_url: previewData.preview_url });
-                        } else {
-                            enhanced.push(track);
-                        }
-                    } catch {
-                        enhanced.push(track);
-                    }
-                }
-            }
-            setEnhancedTracks(enhanced);
-            setEnhancing(false);
-        };
-
-        return (
-            <div style={{ background: "#222", padding: 20, borderRadius: 10, marginBottom: 30 }}>
-                <h3>Your Top Tracks (with Preview)</h3>
-                <button
-                    onClick={enhanceTrackPreviews}
-                    disabled={enhancing}
-                    style={{ padding: "8px 15px", marginBottom: 15, borderRadius: 5, background: "#1DB954", color: "white", border: "none" }}
-                >
-                    {enhancing ? "Finding Previews..." : "Find Missing Previews"}
-                </button>
-                <ol style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-                    {enhancedTracks.map((track, idx) => (
-                        <li key={track.id} style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span style={{ minWidth: 24, color: '#aaa' }}>{idx + 1}.</span>
-                            <span><b>{track.name}</b> <span style={{ color: '#aaa' }}>by</span> {track.artists.map((a: any) => a.name).join(", ")}</span>
-                            {track.preview_url ? (
-                                <audio src={track.preview_url} controls style={{ height: 24, marginLeft: 10 }} />
-                            ) : (
-                                <span style={{ color: '#f55', marginLeft: 10 }}>No Preview</span>
-                            )}
-                        </li>
-                    ))}
-                </ol>
-            </div>
-        );
-    }
-
     // --- Free Text Quiz State ---
-    const [freeTextMode, setFreeTextMode] = useState(true); // Enable free text mode
     const [userArtist, setUserArtist] = useState("");
     const [userTitle, setUserTitle] = useState("");
     const [freeTextFeedback, setFreeTextFeedback] = useState<string | null>(null);
-    const [currentTrack, setCurrentTrack] = useState<any | null>(null);
+    const [currentTrack, setCurrentTrack] = useState<SpotifyTrack | null>(null);
     const [loadingNextTrack, setLoadingNextTrack] = useState(false);
-    const [availableTracks, setAvailableTracks] = useState<any[]>([]);
     const [usedTrackIds, setUsedTrackIds] = useState<Set<string>>(new Set());
 
     // Helper: Normalize string for comparison
@@ -307,7 +254,7 @@ export default function QuizPage() {
     }
 
     // Helper: Get a random track with preview
-    const getRandomTrackWithPreview = async (): Promise<any | null> => {
+    const getRandomTrackWithPreview = useCallback(async (): Promise<SpotifyTrack | null> => {
         // First, try tracks that already have preview_url
         const tracksWithPreview = topTracks.filter(t => t.preview_url && !usedTrackIds.has(t.id));
         if (tracksWithPreview.length > 0) {
@@ -324,7 +271,7 @@ export default function QuizPage() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         song: track.name,
-                        artist: track.artists.map((a: any) => a.name).join(", ")
+                        artist: track.artists.map((a) => a.name).join(", ")
                     }),
                 });
                 if (res.ok) {
@@ -336,11 +283,11 @@ export default function QuizPage() {
             }
         }
         return null; // No more tracks with previews
-    };
+    }, [topTracks, usedTrackIds]);
 
     // Load first track when topTracks is available
     useEffect(() => {
-        if (topTracks.length > 0 && !currentTrack && freeTextMode) {
+        if (topTracks.length > 0 && !currentTrack) {
             const loadFirstTrack = async () => {
                 setLoadingNextTrack(true);
                 const track = await getRandomTrackWithPreview();
@@ -352,20 +299,25 @@ export default function QuizPage() {
             };
             loadFirstTrack();
         }
-    }, [topTracks, currentTrack, freeTextMode]);
+    }, [topTracks, currentTrack, getRandomTrackWithPreview]);
 
     const [freeTextScore, setFreeTextScore] = useState(0);
     const [totalQuestions, setTotalQuestions] = useState(0);
     const [maxQuestions] = useState(3); // Limit to 3 songs for testing
-    const [savingResult, setSavingResult] = useState(false);
-    const [quizTracks, setQuizTracks] = useState<any[]>([]); // Store tracks and answers for saving
+    const [quizTracks, setQuizTracks] = useState<{
+        trackId: string;
+        trackName: string;
+        artist: string;
+        correct: boolean;
+        userAnswer: { artist: string; title: string };
+    }[]>([]); // Store tracks and answers for saving
 
     function handleFreeTextSubmit(e: React.FormEvent) {
         e.preventDefault();
         if (!currentTrack) return;
 
         setFreeTextFeedback(null);
-        const correctArtist = currentTrack.artists.map((a: any) => a.name).join(", ");
+        const correctArtist = currentTrack.artists.map((a) => a.name).join(", ");
         const correctTitle = currentTrack.name;
         const artistCorrect = isClose(userArtist, correctArtist);
         const titleCorrect = isClose(userTitle, correctTitle);
@@ -400,7 +352,6 @@ export default function QuizPage() {
         if (newTotalQuestions >= maxQuestions) {
             // Save result to database with track details
             setTimeout(async () => {
-                setSavingResult(true);
                 try {
                     const finalScore = isCorrect ? freeTextScore + 1 : freeTextScore;
                     const finalTracks = [...quizTracks, trackResult];
@@ -418,7 +369,6 @@ export default function QuizPage() {
                 } catch (error) {
                     console.error("Failed to save quiz result:", error);
                 }
-                setSavingResult(false);
                 setCurrentTrack(null); // This will trigger the quiz finished state
             }, 1800);
             return;
@@ -456,95 +406,20 @@ export default function QuizPage() {
     }
 
     // --- Rendering States ---
-    if (freeTextMode) {
-        // Show quiz finished if no more tracks
-        if (totalQuestions > 0 && !currentTrack && !loadingNextTrack) {
-            return (
-                <div style={styles.container}>
-                    <div style={{ width: "100%", maxWidth: 500 }}>
-                        <PreviewChecker />
-                        <div style={styles.quizCard}>
-                            <h2>Quiz Finished!</h2>
-                            <p style={styles.scoreText}>
-                                Your Final Score: {freeTextScore} / {totalQuestions}
-                            </p>
-                            <button onClick={handleFreeTextRestart} style={styles.actionButton}>
-                                Play Again
-                            </button>
-                            <Link href="/dashboard" style={styles.linkButton}>
-                                Back to Dashboard
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // Show current track quiz or loading
-        if (currentTrack) {
-            return (
-                <div style={styles.container}>
-                    <div style={{ width: "100%", maxWidth: 500 }}>
-                        <PreviewChecker />
-                        <div style={styles.quizCard}>
-                            <h2>Type the Artist and Title</h2>
-                            <p>Question {totalQuestions + 1} - Score: {freeTextScore}/{totalQuestions}</p>
-                            <audio src={currentTrack.preview_url} controls autoPlay loop style={{ marginBottom: 20 }} />
-                            <form onSubmit={handleFreeTextSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                <input
-                                    type="text"
-                                    placeholder="Artist"
-                                    value={userArtist}
-                                    onChange={e => setUserArtist(e.target.value)}
-                                    style={{ padding: 10, borderRadius: 5, border: '1px solid #444' }}
-                                    autoFocus
-                                    required
-                                    disabled={!!freeTextFeedback}
-                                />
-                                <input
-                                    type="text"
-                                    placeholder="Title"
-                                    value={userTitle}
-                                    onChange={e => setUserTitle(e.target.value)}
-                                    style={{ padding: 10, borderRadius: 5, border: '1px solid #444' }}
-                                    required
-                                    disabled={!!freeTextFeedback}
-                                />
-                                <button type="submit" style={{ ...styles.actionButton, marginTop: 0 }} disabled={!!freeTextFeedback}>
-                                    Submit
-                                </button>
-                            </form>
-                            {freeTextFeedback && <div style={{ marginTop: 15, fontWeight: 'bold' }}>{freeTextFeedback}</div>}
-                            {loadingNextTrack && <div style={{ marginTop: 15, color: '#aaa' }}>Loading next track...</div>}
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // Loading first track
-        if (loadingNextTrack || topTracks.length === 0) {
-            return (
-                <div style={styles.container}>
-                    <div style={{ width: "100%", maxWidth: 500 }}>
-                        <PreviewChecker />
-                        <div style={styles.quizCard}>
-                            <h2>Loading Quiz...</h2>
-                            <p>Finding a track with preview...</p>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // No tracks available
+    // Show quiz finished if no more tracks
+    if (totalQuestions > 0 && !currentTrack && !loadingNextTrack) {
         return (
             <div style={styles.container}>
                 <div style={{ width: "100%", maxWidth: 500 }}>
                     <PreviewChecker />
                     <div style={styles.quizCard}>
-                        <h2>No Playable Tracks</h2>
-                        <p>Couldn't find any of your top tracks with previews.</p>
+                        <h2>Quiz Finished!</h2>
+                        <p style={styles.scoreText}>
+                            Your Final Score: {freeTextScore} / {totalQuestions}
+                        </p>
+                        <button onClick={handleFreeTextRestart} style={styles.actionButton}>
+                            Play Again
+                        </button>
                         <Link href="/dashboard" style={styles.linkButton}>
                             Back to Dashboard
                         </Link>
@@ -554,48 +429,64 @@ export default function QuizPage() {
         );
     }
 
-    // --- Rendering States ---
-    if (gameState === "loading") {
+    // Show current track quiz or loading
+    if (currentTrack) {
         return (
             <div style={styles.container}>
-                <p style={styles.loadingText}>Loading Your Quiz...</p>
-            </div>
-        );
-    }
-
-    if (gameState === "ready") {
-        return (
-            <div style={styles.container}>
-                <div style={styles.quizCard}>
-                    <h2>🎧 Ready to play?</h2>
-                    <p>This quiz will play song previews from your Spotify top tracks.</p>
-                    <button onClick={handleStartQuiz} style={styles.actionButton}>
-                        Start Quiz
-                    </button>
+                <div style={{ width: "100%", maxWidth: 500 }}>
+                    <PreviewChecker />
+                    <div style={styles.quizCard}>
+                        <h2>Type the Artist and Title</h2>
+                        <p>Question {totalQuestions + 1} - Score: {freeTextScore}/{totalQuestions}</p>
+                        <audio src={currentTrack.preview_url || undefined} controls autoPlay loop style={{ marginBottom: 20 }} />
+                        <form onSubmit={handleFreeTextSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <input
+                                type="text"
+                                placeholder="Artist"
+                                value={userArtist}
+                                onChange={e => setUserArtist(e.target.value)}
+                                style={{ padding: 10, borderRadius: 5, border: '1px solid #444' }}
+                                autoFocus
+                                required
+                                disabled={!!freeTextFeedback}
+                            />
+                            <input
+                                type="text"
+                                placeholder="Title"
+                                value={userTitle}
+                                onChange={e => setUserTitle(e.target.value)}
+                                style={{ padding: 10, borderRadius: 5, border: '1px solid #444' }}
+                                required
+                                disabled={!!freeTextFeedback}
+                            />
+                            <button type="submit" style={{ ...styles.actionButton, marginTop: 0 }} disabled={!!freeTextFeedback}>
+                                Submit
+                            </button>
+                        </form>
+                        {freeTextFeedback && <div style={{ marginTop: 15, fontWeight: 'bold' }}>{freeTextFeedback}</div>}
+                        {loadingNextTrack && <div style={{ marginTop: 15, color: '#aaa' }}>Loading next track...</div>}
+                    </div>
                 </div>
             </div>
         );
     }
 
-    if (gameState === "finished") {
+    // Loading first track
+    if (loadingNextTrack || topTracks.length === 0) {
         return (
             <div style={styles.container}>
-                <div style={styles.resultsCard}>
-                    <h1>Quiz Finished!</h1>
-                    <p style={styles.scoreText}>
-                        Your Final Score: {score} / {questions.length}
-                    </p>
-                    <button onClick={handlePlayAgain} style={styles.actionButton}>
-                        Play Again
-                    </button>
-                    <Link href="/dashboard" style={styles.linkButton}>
-                        Back to Dashboard
-                    </Link>
+                <div style={{ width: "100%", maxWidth: 500 }}>
+                    <PreviewChecker />
+                    <div style={styles.quizCard}>
+                        <h2>Loading Quiz...</h2>
+                        <p>Finding a track with preview...</p>
+                    </div>
                 </div>
             </div>
         );
     }
 
+    // No tracks available
     if (gameState === "error") {
         return (
             <div style={styles.container}>
@@ -604,21 +495,12 @@ export default function QuizPage() {
                     <div style={styles.quizCard}>
                         <h2>Quiz Unavailable</h2>
                         <p>Failed to load quiz. Do you have enough listening history?</p>
-                        <p>You can still check for Spotify previews below, or see your top tracks above.</p>
+                        <p>You can still check for Spotify previews above.</p>
                         <Link href="/dashboard" style={styles.linkButton}>
                             Back to Dashboard
                         </Link>
                     </div>
                 </div>
-            </div>
-        );
-    }
-
-    const currentQuestion = questions[currentQuestionIndex];
-    if (!currentQuestion) {
-        return (
-            <div style={styles.container}>
-                <p style={styles.loadingText}>Preparing questions...</p>
             </div>
         );
     }
@@ -628,55 +510,11 @@ export default function QuizPage() {
             <div style={{ width: "100%", maxWidth: 500 }}>
                 <PreviewChecker />
                 <div style={styles.quizCard}>
-                    <h2>
-                        Question {currentQuestionIndex + 1} of {questions.length}
-                    </h2>
-                    <p>Guess the song!</p>
-
-                    {/* Audio Player */}
-                    <audio
-                        ref={audioRef}
-                        src={currentQuestion.preview_url}
-                        autoPlay
-                        loop
-                    />
-
-                    <div style={styles.optionsContainer}>
-                        {currentQuestion.options.map((option) => {
-                            const isCorrect = option.id === currentQuestion.correct_answer_id;
-                            let backgroundColor = "#f0f0f0";
-                            if (isAnswered) {
-                                if (isCorrect) backgroundColor = "#28a745";
-                                else if (selectedAnswer === option.id)
-                                    backgroundColor = "#dc3545";
-                            }
-
-                            return (
-                                <button
-                                    key={option.id}
-                                    onClick={() => handleAnswerClick(option.id)}
-                                    disabled={isAnswered}
-                                    style={{
-                                        ...styles.optionButton,
-                                        backgroundColor,
-                                        color: isAnswered ? "white" : "black",
-                                    }}
-                                >
-                                    <strong>{option.name}</strong>
-                                    <br />
-                                    <small>{option.artist}</small>
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    {isAnswered && (
-                        <button onClick={handleNextQuestion} style={styles.actionButton}>
-                            {currentQuestionIndex < questions.length - 1
-                                ? "Next Question"
-                                : "Finish Quiz"}
-                        </button>
-                    )}
+                    <h2>No Playable Tracks</h2>
+                    <p>Couldn&apos;t find any of your top tracks with previews.</p>
+                    <Link href="/dashboard" style={styles.linkButton}>
+                        Back to Dashboard
+                    </Link>
                 </div>
             </div>
         </div>
