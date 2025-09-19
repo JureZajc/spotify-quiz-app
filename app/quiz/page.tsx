@@ -29,9 +29,20 @@ export default function QuizPage() {
     const [isAnswered, setIsAnswered] = useState(false);
     const audioRef = useRef<HTMLAudioElement>(null);
     const [topTracks, setTopTracks] = useState<any[]>([]);
+    const [selectedTimeRange, setSelectedTimeRange] = useState<string>("medium_term");
 
     // --- Fetch quiz data on mount ---
     useEffect(() => {
+        // Get time range from URL params if provided
+        const urlParams = new URLSearchParams(window.location.search);
+        const timeRangeParam = urlParams.get('time_range');
+        let currentTimeRange = "medium_term"; // default
+
+        if (timeRangeParam && ['short_term', 'medium_term', 'long_term'].includes(timeRangeParam)) {
+            currentTimeRange = timeRangeParam;
+            setSelectedTimeRange(timeRangeParam);
+        }
+
         const fetchQuizData = async () => {
             setGameState("loading");
             try {
@@ -47,18 +58,22 @@ export default function QuizPage() {
                 setGameState("error");
             }
         };
+
         const fetchTopTracks = async () => {
             try {
-                const res = await fetch("/api/spotify/top-items?time_range=medium_term", { credentials: "include" });
+                console.log(`Fetching tracks for time range: ${currentTimeRange}`);
+                const res = await fetch(`/api/spotify/top-items?time_range=${currentTimeRange}`, { credentials: "include" });
                 if (res.ok) {
                     const data = await res.json();
+                    console.log(`Fetched ${data.tracks?.length || 0} tracks for ${currentTimeRange}`);
                     setTopTracks(data.tracks || []);
                 }
             } catch {}
         };
+
         fetchQuizData();
         fetchTopTracks();
-    }, [router]);
+    }, [router]); // Remove selectedTimeRange from dependencies to avoid double fetch
 
     // --- Play audio when question changes ---
     useEffect(() => {
@@ -395,7 +410,7 @@ export default function QuizPage() {
                         body: JSON.stringify({
                             score: finalScore,
                             totalQuestions: newTotalQuestions,
-                            timeRange: 'medium_term',
+                            timeRange: selectedTimeRange, // Use the actual selected time range
                             tracks: finalTracks
                         }),
                         credentials: "include"

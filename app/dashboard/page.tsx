@@ -292,7 +292,7 @@ export default function Dashboard() {
         {/* Link to the Quiz */}
         <div style={{ marginTop: "40px", textAlign: "center" }}>
           <Link
-            href="/quiz"
+            href={`/quiz?time_range=${timeRange}`}
             style={{
               padding: "15px 30px",
               backgroundColor: "#1DB954",
