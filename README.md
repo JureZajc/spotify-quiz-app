@@ -62,7 +62,7 @@ MONGODB_URI=your_mongodb_connection_string
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/spotify-quiz-app.git
+git clone https://github.com/JureZajc/spotify-quiz-app.git
 cd spotify-quiz-app
 ```
 
