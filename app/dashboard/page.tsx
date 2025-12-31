@@ -6,6 +6,10 @@ import { useSession, signOut } from "next-auth/react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 // --- Type Definitions ---
 interface Track {
@@ -71,7 +75,9 @@ export default function Dashboard() {
           const result: TopItemsData = await res.json();
           setData(result);
         } catch (err: unknown) {
-          setError(err instanceof Error ? err.message : "An unknown error occurred");
+          setError(
+            err instanceof Error ? err.message : "An unknown error occurred"
+          );
         } finally {
           setLoading(false);
         }
@@ -81,31 +87,27 @@ export default function Dashboard() {
   }, [status, timeRange, router]); // Re-fetch when timeRange or auth status changes
 
   const renderContent = () => {
-    if (loading) return <p>Loading...</p>;
-    if (error) return <p>Error: {error}</p>;
-    if (!data) return <p>No data found.</p>;
+    if (loading)
+      return (
+        <p className="text-center py-8 text-muted-foreground">Loading...</p>
+      );
+    if (error)
+      return <p className="text-center py-8 text-red-500">Error: {error}</p>;
+    if (!data)
+      return (
+        <p className="text-center py-8 text-muted-foreground">No data found.</p>
+      );
 
     switch (activeTab) {
       case "tracks":
         return (
-          <ol>
+          <ol className="space-y-3">
             {data.tracks.map((track, index) => (
               <li
                 key={track.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  margin: "10px 0",
-                  gap: "15px",
-                }}
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors"
               >
-                <span
-                  style={{
-                    fontWeight: "bold",
-                    minWidth: "25px",
-                    textAlign: "right",
-                  }}
-                >
+                <span className="font-bold min-w-[30px] text-right text-muted-foreground">
                   {index + 1}.
                 </span>
                 <Image
@@ -113,16 +115,19 @@ export default function Dashboard() {
                   alt={track.name}
                   width={50}
                   height={50}
+                  className="rounded"
                 />
-                <div style={{ flexGrow: 1 }}>
-                  <strong>{track.name}</strong>
-                  <div style={{ color: "#888" }}>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold truncate">{track.name}</div>
+                  <div className="text-sm text-muted-foreground truncate">
                     {track.artists.map((a) => a.name).join(", ")}
                   </div>
                 </div>
-                {/* --- Playable Song Icon --- */}
                 {track.preview_url && (
-                  <div title="This song has a playable preview">
+                  <div
+                    title="This song has a playable preview"
+                    className="flex-shrink-0"
+                  >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="24"
@@ -133,7 +138,7 @@ export default function Dashboard() {
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      style={{ color: "#1DB954" }} // Spotify Green
+                      className="text-green-600"
                     >
                       <circle cx="12" cy="12" r="10"></circle>
                       <polygon points="10 8 16 12 10 16 10 8"></polygon>
@@ -146,24 +151,13 @@ export default function Dashboard() {
         );
       case "artists":
         return (
-          <ol>
+          <ol className="space-y-3">
             {data.artists.map((artist, index) => (
               <li
                 key={artist.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  margin: "10px 0",
-                  gap: "15px",
-                }}
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors"
               >
-                <span
-                  style={{
-                    fontWeight: "bold",
-                    minWidth: "25px",
-                    textAlign: "right",
-                  }}
-                >
+                <span className="font-bold min-w-[30px] text-right text-muted-foreground">
                   {index + 1}.
                 </span>
                 <Image
@@ -171,25 +165,28 @@ export default function Dashboard() {
                   alt={artist.name}
                   width={50}
                   height={50}
-                  style={{ borderRadius: "50%" }}
+                  className="rounded-full"
                 />
-                <strong>{artist.name}</strong>
+                <div className="font-semibold">{artist.name}</div>
               </li>
             ))}
           </ol>
         );
       case "genres":
         return (
-          <ol>
+          <ol className="space-y-3">
             {data.genres.map((genre, index) => (
               <li
                 key={genre.name}
-                style={{ margin: "10px 0", textTransform: "capitalize" }}
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors capitalize"
               >
-                <span style={{ marginRight: "15px", fontWeight: "bold" }}>
+                <span className="font-bold min-w-[30px] text-right text-muted-foreground">
                   {index + 1}.
                 </span>
-                {genre.name}
+                <span>{genre.name}</span>
+                <Badge variant="secondary" className="ml-auto">
+                  {genre.count}
+                </Badge>
               </li>
             ))}
           </ol>
@@ -199,127 +196,87 @@ export default function Dashboard() {
     }
   };
 
-  const buttonStyle = (tabName: ActiveTab) => ({
-    padding: "10px 20px",
-    cursor: "pointer",
-    border: "none",
-    backgroundColor: activeTab === tabName ? "#1DB954" : "#eee",
-    color: activeTab === tabName ? "white" : "black",
-    borderRadius: "5px",
-  });
-
-  const timeRangeButtonStyle = (range: TimeRange) => ({
-    padding: "8px 15px",
-    cursor: "pointer",
-    border: "1px solid #ccc",
-    backgroundColor: timeRange === range ? "#333" : "white",
-    color: timeRange === range ? "white" : "black",
-    borderRadius: "5px",
-  });
-
   if (status === "loading") {
-    return <p>Loading session...</p>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-lg">Loading session...</p>
+      </div>
+    );
   }
 
   return (
-    <div style={{ fontFamily: "sans-serif", padding: "20px" }}>
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <h1>Your Spotify Stats</h1>
-        <div>
-          {session?.user?.name && (
-            <span style={{ marginRight: "15px" }}>
-              Welcome, {session.user.name}
-            </span>
-          )}
-          <button onClick={() => signOut()}>Sign Out</button>
+    <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white p-4 md:p-6">
+      <header className="max-w-6xl mx-auto mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-zinc-800">
+          <h1 className="text-2xl md:text-3xl font-bold">Your Spotify Stats</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            {session?.user?.name && (
+              <span className="text-sm md:text-base text-muted-foreground">
+                Welcome, {session.user.name}
+              </span>
+            )}
+            <Button onClick={() => signOut()} variant="outline" size="sm">
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main>
-        {/* Top Menu for Tracks/Artists/Genres */}
-        <div style={{ margin: "20px 0", display: "flex", gap: "10px" }}>
-          <button
-            onClick={() => setActiveTab("tracks")}
-            style={buttonStyle("tracks")}
-          >
-            Top Tracks
-          </button>
-          <button
-            onClick={() => setActiveTab("artists")}
-            style={buttonStyle("artists")}
-          >
-            Top Artists
-          </button>
-          <button
-            onClick={() => setActiveTab("genres")}
-            style={buttonStyle("genres")}
-          >
-            Top Genres
-          </button>
-        </div>
+      <main className="max-w-6xl mx-auto">
+        <Card className="mb-6">
+          <CardContent className="p-4 md:p-6">
+            <Tabs
+              value={activeTab}
+              onValueChange={(val) => setActiveTab(val as ActiveTab)}
+            >
+              <TabsList className="grid w-full grid-cols-3 mb-6">
+                <TabsTrigger value="tracks">Tracks</TabsTrigger>
+                <TabsTrigger value="artists">Artists</TabsTrigger>
+                <TabsTrigger value="genres">Genres</TabsTrigger>
+              </TabsList>
 
-        {/* Time Range Selector */}
-        <div style={{ margin: "20px 0", display: "flex", gap: "10px" }}>
-          <button
-            onClick={() => setTimeRange("short_term")}
-            style={timeRangeButtonStyle("short_term")}
-          >
-            Last 4 Weeks
-          </button>
-          <button
-            onClick={() => setTimeRange("medium_term")}
-            style={timeRangeButtonStyle("medium_term")}
-          >
-            Last 6 Months
-          </button>
-          <button
-            onClick={() => setTimeRange("long_term")}
-            style={timeRangeButtonStyle("long_term")}
-          >
-            All Time
-          </button>
-        </div>
+              {/* Time Range Selector */}
+              <div className="flex flex-wrap gap-2 mb-6">
+                <Button
+                  onClick={() => setTimeRange("short_term")}
+                  variant={timeRange === "short_term" ? "default" : "outline"}
+                  size="sm"
+                >
+                  Last 4 Weeks
+                </Button>
+                <Button
+                  onClick={() => setTimeRange("medium_term")}
+                  variant={timeRange === "medium_term" ? "default" : "outline"}
+                  size="sm"
+                >
+                  Last 6 Months
+                </Button>
+                <Button
+                  onClick={() => setTimeRange("long_term")}
+                  variant={timeRange === "long_term" ? "default" : "outline"}
+                  size="sm"
+                >
+                  All Time
+                </Button>
+              </div>
 
-        {renderContent()}
+              <TabsContent value="tracks">{renderContent()}</TabsContent>
+              <TabsContent value="artists">{renderContent()}</TabsContent>
+              <TabsContent value="genres">{renderContent()}</TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
 
-        {/* Link to the Quiz */}
-        <div style={{ marginTop: "40px", textAlign: "center" }}>
-          <Link
-            href={`/quiz?time_range=${timeRange}`}
-            style={{
-              padding: "15px 30px",
-              backgroundColor: "#1DB954",
-              color: "white",
-              textDecoration: "none",
-              borderRadius: "50px",
-              fontSize: "1.2em",
-              fontWeight: "bold",
-              marginRight: "15px",
-            }}
-          >
-            Start the Quiz!
-          </Link>
-          <Link
-            href="/statistics"
-            style={{
-              padding: "15px 30px",
-              backgroundColor: "#333",
-              color: "white",
-              textDecoration: "none",
-              borderRadius: "50px",
-              fontSize: "1.2em",
-              fontWeight: "bold",
-            }}
-          >
-            📊 View Statistics
-          </Link>
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <Button asChild size="lg" className="bg-green-600 hover:bg-green-700">
+            <Link href={`/quiz?time_range=${timeRange}`}>
+              🎵 Start the Quiz!
+            </Link>
+          </Button>
+          <Button asChild size="lg" variant="secondary">
+            <Link href="/statistics">📊 View Statistics</Link>
+          </Button>
         </div>
       </main>
     </div>
